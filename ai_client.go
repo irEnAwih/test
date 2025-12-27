@@ -12,7 +12,7 @@ type AIReviewer struct {
 
 func NewAIReviewer(apiKey string) *AIReviewer {
 	config := openai.DefaultConfig(apiKey)
-	config.BaseURL = "https://api.openai.com/v1"
+	config.BaseURL = "https://api-inference.modelscope.cn/v1"
 	client := openai.NewClientWithConfig(config)
 	return &AIReviewer{client: client}
 }

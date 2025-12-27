@@ -12,7 +12,10 @@ import (
 
 func main() {
 	// 0. 加载 .env 文件 (方便本地开发)
-	_ = godotenv.Load()
+	err := godotenv.Load()
+	if err != nil {
+		log.Printf("Warning: Error loading .env file: %v", err)
+	}
 
 	// 获取 API Key
 	githubToken := os.Getenv("GITHUB_TOKEN")
