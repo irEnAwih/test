@@ -15,9 +15,9 @@ func Load() *domain.Config {
 		OpenAIKey:   os.Getenv("OPENAI_API_KEY"),
 	}
 
-	owner := flag.String("owner", "", "Repo Owner")
-	repo := flag.String("repo", "", "Repo Name")
-	pr := flag.Int("pr", 0, "PR Number")
+	owner := flag.String("owner", "irEnAwih", "Repo Owner")
+	repo := flag.String("repo", "test", "Repo Name")
+	pr := flag.Int("pr", 1, "PR Number")
 	flag.Parse()
 
 	cfg.RepoOwner = *owner

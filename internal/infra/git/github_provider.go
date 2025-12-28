@@ -6,6 +6,7 @@ import (
 	"github.com/google/go-github/v60/github"
 	"github.com/waigani/diffparser"
 	"go-pr-review/internal/domain"
+	"strings"
 )
 
 type GitHubProvider struct {
@@ -36,8 +37,7 @@ func (g *GitHubProvider) GetPRDiff(ctx context.Context, owner, repo string, prNu
 	// 3.转换为领域模型（Domain Model)
 	var domainDiffs []*domain.FileDiff
 	for _, file := range parsedDiff.Files {
-		// 可以在这里过滤文件，例如忽略 go.sum, .lock 等
-		if file.NewName == "go.sum" || file.NewName == "go.mod" {
+		if shouldIgnore(file.NewName) {
 			continue
 		}
 
@@ -115,4 +115,18 @@ func (g *GitHubProvider) PostReview(ctx context.Context, owner, repo string, prN
 	}
 
 	return nil
+}
+
+func shouldIgnore(filename string) bool {
+	ignores := []string{
+		"go.sum", "go.mod", "yarn.lock", "package-lock.json",
+		".pb.go", "_test.go", // 可选：忽略测试文件
+		".png", ".jpg", ".svg",
+	}
+	for _, ignore := range ignores {
+		if strings.HasSuffix(filename, ignore) {
+			return true
+		}
+	}
+	return false
 }
