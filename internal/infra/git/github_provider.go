@@ -13,6 +13,20 @@ type GitHubProvider struct {
 	client *github.Client
 }
 
+func (g *GitHubProvider) UpdatePRInfo(ctx context.Context, owner, repo string, prNumber int, title string, body string) error {
+	// 构建Update 请求
+	req := &github.PullRequest{
+		Title: github.String(title),
+		Body:  github.String(body),
+	}
+
+	_, _, err := g.client.PullRequests.Edit(ctx, owner, repo, prNumber, req)
+	if err != nil {
+		return fmt.Errorf("failed to update pull request info: %w", err)
+	}
+	return nil
+}
+
 func NewGitHubProvider(token string) *GitHubProvider {
 	client := github.NewClient(nil).WithAuthToken(token)
 	return &GitHubProvider{client: client}

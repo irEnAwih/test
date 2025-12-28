@@ -17,15 +17,25 @@ type ReviewComment struct {
 	Type       string `json:"type"`       // 比如“ISSUE”，“SUGGESTION“
 }
 
+// PRDescription PR 描述结果
+type PRDescription struct {
+	Title   string `json:"title"`
+	Summary string `json:"summary"`
+	Changes string `json:"changes"`
+}
+
 // GitProvider 定义与代码托管平台交互的标准接口
 type GitProvider interface {
 	GetPRDiff(ctx context.Context, owner, repo string, prNumber int) ([]*FileDiff, error)
 	PostReview(ctx context.Context, owner, repo string, prNumber int, comments []*ReviewComment) error
+	UpdatePRInfo(ctx context.Context, owner, repo string, prNumber int, title string, body string) error
 }
 
 // AIProvider 定义与 LLM 交互的标准接口
 type AIProvider interface {
 	ReviewFile(ctx context.Context, diff *FileDiff) ([]*ReviewComment, error)
+
+	DescribePR(ctx context.Context, diffs []*FileDiff) (*PRDescription, error)
 }
 
 // Config 聚合配置对象
