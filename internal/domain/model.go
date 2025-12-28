@@ -29,20 +29,31 @@ type GitProvider interface {
 	GetPRDiff(ctx context.Context, owner, repo string, prNumber int) ([]*FileDiff, error)
 	PostReview(ctx context.Context, owner, repo string, prNumber int, comments []*ReviewComment) error
 	UpdatePRInfo(ctx context.Context, owner, repo string, prNumber int, title string, body string) error
+	GetFileContent(ctx context.Context, owner, repo, path string, ref string) (string, error)
 }
 
 // AIProvider 定义与 LLM 交互的标准接口
 type AIProvider interface {
-	ReviewFile(ctx context.Context, diff *FileDiff) ([]*ReviewComment, error)
+	ReviewFile(ctx context.Context, diff *FileDiff, config RepoConfig) ([]*ReviewComment, error)
 
-	DescribePR(ctx context.Context, diffs []*FileDiff) (*PRDescription, error)
+	DescribePR(ctx context.Context, diffs []*FileDiff, config RepoConfig) (*PRDescription, error)
+}
+
+// RepoConfig 代表仓库级别的自定义配置 (.ai-review.yaml)
+type RepoConfig struct {
+	Language          string   `mapstructure:"language" json:"language"`                     // 输出语言: "zh-CN", "en-US"
+	ExtraInstructions string   `mapstructure:"extra_instructions" json:"extra_instructions"` // 额外的 Prompt 指令
+	IgnorePatterns    []string `mapstructure:"ignore_patterns" json:"ignore_patterns"`       // 忽略的文件 glob 模式
 }
 
 // Config 聚合配置对象
 type Config struct {
-	GithubToken string
-	OpenAIKey   string
-	RepoOwner   string
-	RepoName    string
-	PRNumber    int
+	GithubToken   string
+	OpenAIKey     string
+	RepoOwner     string
+	RepoName      string
+	PRNumber      int
+	RepoConfig    RepoConfig // 动态加载的仓库配置
+	WebHookSecret string
+	Port          string
 }

@@ -3,8 +3,10 @@ package service
 import (
 	"context"
 	"fmt"
+	"go-pr-review/internal/config"
 	"go-pr-review/internal/domain"
 	"log"
+	"path/filepath"
 )
 
 type ReviewService struct {
@@ -19,12 +21,16 @@ func NewReviewService(git domain.GitProvider, ai domain.AIProvider) *ReviewServi
 func (s *ReviewService) Run(ctx context.Context, cfg *domain.Config) {
 	log.Printf("🚀 Starting V0.6 Review & Describe...")
 
+	repoConfig := config.LoadRepoConfig(ctx, s.git, cfg.RepoOwner, cfg.RepoName)
+	cfg.RepoConfig = repoConfig // 保存起来
+
 	// 1. 获取 Diff
 	diffs, err := s.git.GetPRDiff(ctx, cfg.RepoOwner, cfg.RepoName, cfg.PRNumber)
 	if err != nil {
 		log.Fatalf("❌ Diff Error: %v", err)
 	}
 
+	filteredDiffs := filterDiffs(diffs, repoConfig.IgnorePatterns)
 	// ===========================
 	// Feature 1: AI Code Review
 	// ===========================
@@ -37,7 +43,7 @@ func (s *ReviewService) Run(ctx context.Context, cfg *domain.Config) {
 	// ===========================
 	log.Println("📝 Generating PR Description...")
 
-	description, err := s.ai.DescribePR(ctx, diffs)
+	description, err := s.ai.DescribePR(ctx, diffs, cfg.RepoConfig)
 	if err != nil {
 		log.Printf("⚠️ Failed to generate description: %v", err)
 	} else {
@@ -65,4 +71,23 @@ func (s *ReviewService) Run(ctx context.Context, cfg *domain.Config) {
 			log.Println("✅ PR Description updated successfully!")
 		}
 	}
+}
+
+// 简单的 glob 匹配辅助函数
+func filterDiffs(diffs []*domain.FileDiff, patterns []string) []*domain.FileDiff {
+	var keep []*domain.FileDiff
+	for _, d := range diffs {
+		ignored := false
+		for _, p := range patterns {
+			// 使用 path/filepath.Match
+			if matched, _ := filepath.Match(p, d.FilePath); matched {
+				ignored = true
+				break
+			}
+		}
+		if !ignored {
+			keep = append(keep, d)
+		}
+	}
+	return keep
 }

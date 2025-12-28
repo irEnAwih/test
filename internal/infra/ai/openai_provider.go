@@ -24,7 +24,7 @@ type OpenAIProvider struct {
 	describeTmpl *template.Template
 }
 
-func (o *OpenAIProvider) DescribePR(ctx context.Context, diffs []*domain.FileDiff) (*domain.PRDescription, error) {
+func (o *OpenAIProvider) DescribePR(ctx context.Context, diffs []*domain.FileDiff, config domain.RepoConfig) (*domain.PRDescription, error) {
 	// 1. 拼接所有 Diff (注意 Token 限制)
 	// Describe 需要看全局，所以我们把所有文件的 diff 拼起来，但要控制总长度
 	// 策略：每个文件取前 1000 字符，或者总共取前 20000 字符
@@ -105,12 +105,14 @@ func NewOpenAIProvider(apiKey string) *OpenAIProvider {
 
 // PromptData 用于渲染模板
 type PromptData struct {
-	Language    string
-	FileName    string
-	DiffContent string
+	Language          string // 代码语言 (go, python)
+	OutputLanguage    string // [New] 输出语言 (zh-CN, en-US)
+	ExtraInstructions string // [New] 用户自定义指令
+	FileName          string
+	DiffContent       string
 }
 
-func (o *OpenAIProvider) ReviewFile(ctx context.Context, diff *domain.FileDiff) ([]*domain.ReviewComment, error) {
+func (o *OpenAIProvider) ReviewFile(ctx context.Context, diff *domain.FileDiff, config domain.RepoConfig) ([]*domain.ReviewComment, error) {
 	const MaxDiffChar = 15000
 	content := diff.Content
 	if len(content) > MaxDiffChar {
@@ -121,9 +123,11 @@ func (o *OpenAIProvider) ReviewFile(ctx context.Context, diff *domain.FileDiff) 
 	// 模板渲染
 	var promptBuf bytes.Buffer
 	data := PromptData{
-		Language:    detectLanguage(diff.FilePath),
-		FileName:    diff.FilePath,
-		DiffContent: content,
+		Language:          detectLanguage(diff.FilePath),
+		OutputLanguage:    config.Language,          // 注入
+		ExtraInstructions: config.ExtraInstructions, // 注入
+		FileName:          diff.FilePath,
+		DiffContent:       content,
 	}
 	if err := o.reviewTmpl.Execute(&promptBuf, data); err != nil {
 		return nil, fmt.Errorf("template execute error: %w", err)

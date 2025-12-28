@@ -131,6 +131,24 @@ func (g *GitHubProvider) PostReview(ctx context.Context, owner, repo string, prN
 	return nil
 }
 
+// GetFileContent 获取仓库内指定文件的内容
+func (g *GitHubProvider) GetFileContent(ctx context.Context, owner, repo, path string, ref string) (string, error) {
+	// ref 可以是 commit sha 或者 branch name,传空字符串默认 default branch
+	opts := &github.RepositoryContentGetOptions{Ref: ref}
+
+	fileContent, _, _, err := g.client.Repositories.GetContents(ctx, owner, repo, path, opts)
+	if err != nil {
+		return "", fmt.Errorf("failed to get file content: %w", err)
+	}
+
+	content, err := fileContent.GetContent()
+	if err != nil {
+		return "", err
+	}
+
+	return content, err
+}
+
 func shouldIgnore(filename string) bool {
 	ignores := []string{
 		"go.sum", "go.mod", "yarn.lock", "package-lock.json",
