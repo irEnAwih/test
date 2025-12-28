@@ -22,10 +22,14 @@ func main() {
 	// 初始化业务服务
 	reviewer := service.NewReviewService(gitProvider, aiProvider)
 
+	chatHandler := service.NewChatService(gitProvider, aiProvider)
+
+	pushHandler := service.NewPushService(gitProvider, aiProvider)
+
 	r := gin.Default()
 
 	// 出书画handler
-	webhookHandler := api.NewWebhookHandler(reviewer, cfg.WebHookSecret)
+	webhookHandler := api.NewWebhookHandler(reviewer, chatHandler, pushHandler, cfg.WebHookSecret)
 
 	// 注册路由
 	r.POST("/webhook", webhookHandler.Handler)

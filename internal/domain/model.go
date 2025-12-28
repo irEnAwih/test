@@ -30,13 +30,16 @@ type GitProvider interface {
 	PostReview(ctx context.Context, owner, repo string, prNumber int, comments []*ReviewComment) error
 	UpdatePRInfo(ctx context.Context, owner, repo string, prNumber int, title string, body string) error
 	GetFileContent(ctx context.Context, owner, repo, path string, ref string) (string, error)
+	ReplyToComment(ctx context.Context, owner, repo string, prNumber int, commentID int64, body string) error
+	GetCommitDiff(ctx context.Context, owner, repo, sha string) ([]*FileDiff, error)
+	PostCommitComment(ctx context.Context, owner, repo, sha string, comments []*ReviewComment) error
 }
 
 // AIProvider 定义与 LLM 交互的标准接口
 type AIProvider interface {
 	ReviewFile(ctx context.Context, diff *FileDiff, config RepoConfig) ([]*ReviewComment, error)
-
 	DescribePR(ctx context.Context, diffs []*FileDiff, config RepoConfig) (*PRDescription, error)
+	AskQuestion(ctx context.Context, diffSummary string, question string) (string, error)
 }
 
 // RepoConfig 代表仓库级别的自定义配置 (.ai-review.yaml)

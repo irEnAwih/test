@@ -185,6 +185,23 @@ func detectLanguage(filename string) string {
 	return "Code"
 }
 
+func (o OpenAIProvider) AskQuestion(ctx context.Context, diffSummary string, question string) (string, error) {
+	systemPrompt := "You are a helpful coding assistant. Answer the user's question based on the code changes provided."
+	userPrompt := fmt.Sprintf("Code Context:\n%s\n\nUser Question: %s", diffSummary, question)
+
+	resp, err := o.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
+		Model: "deepseek-ai/DeepSeek-V3.2", // 或 GPT-4o
+		Messages: []openai.ChatCompletionMessage{
+			{Role: openai.ChatMessageRoleSystem, Content: systemPrompt},
+			{Role: openai.ChatMessageRoleUser, Content: userPrompt},
+		},
+	})
+	if err != nil {
+		return "", err
+	}
+	return resp.Choices[0].Message.Content, nil
+}
+
 func cleanJSON(s string) string {
 	s = strings.TrimPrefix(s, "```json")
 	s = strings.TrimPrefix(s, "```")

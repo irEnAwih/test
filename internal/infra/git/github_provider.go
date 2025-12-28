@@ -6,6 +6,7 @@ import (
 	"github.com/google/go-github/v60/github"
 	"github.com/waigani/diffparser"
 	"go-pr-review/internal/domain"
+	"log"
 	"strings"
 )
 
@@ -147,6 +148,70 @@ func (g *GitHubProvider) GetFileContent(ctx context.Context, owner, repo, path s
 	}
 
 	return content, err
+}
+
+// ReplyToComment commentID 是用户那条评论的 ID
+func (g *GitHubProvider) ReplyToComment(ctx context.Context, owner, repo string, prNumber int, commentID int64, body string) error {
+	// 不同的事件类型，回复方式略有不同。
+	// 对于 Pull Request Review Comment (Inline)，使用 CreateComment
+	// 对于 Issue Comment (General)，使用 CreateComment
+	// GitHub API 中，PR 也是 Issue。
+
+	comment := &github.IssueComment{
+		Body: github.String(body),
+	}
+	// 注意：CreateComment 是创建新评论，不是回复。
+	// 如果是 Issue Comment，直接创建新的 Issue Comment 即可。
+	// 如果要构建 "Thread" (盖楼)，对于 Issue Comment 没法显式指定 Parent，只能引用。
+	// 对于 Review Comment，可以指定 InReplyTo。
+
+	// 这里为了简化，我们统一作为 Issue Comment 回复，并在内容里 @用户
+	_, _, err := g.client.Issues.CreateComment(ctx, owner, repo, prNumber, comment)
+	return err
+}
+
+// GetCommitDiff 获取 Commit 的 Diff
+func (g *GitHubProvider) GetCommitDiff(ctx context.Context, owner, repo, sha string) ([]*domain.FileDiff, error) {
+	// Github API GetCommit 也会返回Files列表 和Patch
+	commit, _, err := g.client.Repositories.GetCommit(ctx, owner, repo, sha, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var diffs []*domain.FileDiff
+	for _, file := range commit.Files {
+		if file.Patch == nil {
+			continue
+		}
+		// 构建 FileDiff
+		diffs = append(diffs, &domain.FileDiff{
+			FilePath: *file.Filename,
+			Content:  *file.Patch,
+			// 注意：这里没有 diffparser 的 Hunks，如果复用 Line 校验逻辑可能需要适配
+			// 对于 Commit Comment，GitHub API 不需要复杂的行号校验，通常是对 Commit 整体或特定位置评论
+		})
+	}
+
+	return diffs, nil
+}
+
+// PostCommitComment 对Commit发表评论
+func (g *GitHubProvider) PostCommitComment(ctx context.Context, owner, repo, sha string, comments []*domain.ReviewComment) error {
+	for _, c := range comments {
+		// Github CreateCommitComment API
+		comment := &github.RepositoryComment{
+			Path:     github.String(c.FilePath),
+			Position: github.Int(c.LineNumber), // 注意：Commit Comment 的 Position 计算方式极其复杂
+			// 简单起见，V0.9 我们只发 General Comment 到 Commit 下面，不发 Inline。
+			// 因为 Inline 需要精准的 position_in_diff
+			Body: github.String(fmt.Sprintf("[%s:%d] %s", c.FilePath, c.LineNumber, c.Content)),
+		}
+		_, _, err := g.client.Repositories.CreateComment(ctx, owner, repo, sha, comment)
+		if err != nil {
+			log.Printf("Failed to post commit comment: %v", err)
+		}
+	}
+	return nil
 }
 
 func shouldIgnore(filename string) bool {

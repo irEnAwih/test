@@ -12,12 +12,16 @@ import (
 
 type WebHookHandler struct {
 	reviewService *service.ReviewService
+	chatService   *service.ChatService
+	pushService   *service.PushService
 	webhookSecret []byte
 }
 
-func NewWebhookHandler(service *service.ReviewService, secret string) *WebHookHandler {
+func NewWebhookHandler(service *service.ReviewService, chatService *service.ChatService, pushService *service.PushService, secret string) *WebHookHandler {
 	return &WebHookHandler{
 		reviewService: service,
+		chatService:   chatService,
+		pushService:   pushService,
 		webhookSecret: []byte(secret),
 	}
 }
@@ -47,6 +51,34 @@ func (h *WebHookHandler) Handler(c *gin.Context) {
 		// 我们只关心 PR 创建(opened) 和 代码更新(synchronize)
 		if action == "opened" || action == "synchronize" {
 			h.processPullRequest(e)
+		}
+	case *github.IssueCommentEvent:
+		// 只有当是 PR 的评论，且是创建时（created）才处理
+		if e.GetAction() == "created" && e.Issue.IsPullRequest() {
+			// 过滤机器人自己的评论，防止无线循环！
+			if e.Sender.GetType() == "Bot" {
+				return
+			}
+
+			go h.chatService.HandleComment(context.Background(),
+				e.Repo.Owner.GetLogin(),
+				e.Repo.GetName(),
+				e.Issue.GetNumber(),
+				e.Comment.GetBody(),
+				e.Sender.GetLogin())
+		}
+	case *github.PushEvent:
+		// 忽略Tag推送，忽略删除分支（Deleted）
+		if e.Created != nil && *e.Created {
+			// New branch push? maybe review head
+		}
+		if e.HeadCommit != nil {
+			go h.pushService.HandlePush(
+				context.Background(),
+				e.Repo.Owner.GetLogin(),
+				e.Repo.GetName(),
+				e.HeadCommit.GetID(),
+			)
 		}
 	case *github.PingEvent:
 		log.Println("🏓 Pong! GitHub webhook connected successfully.")
