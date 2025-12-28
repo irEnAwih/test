@@ -31,9 +31,6 @@ func Load() *domain.Config {
 	if cfg.GithubToken == "" || cfg.OpenAIKey == "" {
 		log.Fatal("Missing env vars: GITHUB_TOKEN or OPENAI_API_KEY")
 	}
-	if cfg.RepoOwner == "" || cfg.RepoName == "" || cfg.PRNumber == 0 {
-		log.Fatal("Usage: app -owner=... -repo=... -pr=...")
-	}
 
 	return cfg
 }

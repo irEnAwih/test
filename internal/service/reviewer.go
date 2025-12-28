@@ -43,7 +43,7 @@ func (s *ReviewService) Run(ctx context.Context, cfg *domain.Config) {
 	// ===========================
 	log.Println("📝 Generating PR Description...")
 
-	description, err := s.ai.DescribePR(ctx, diffs, cfg.RepoConfig)
+	description, err := s.ai.DescribePR(ctx, filteredDiffs, cfg.RepoConfig)
 	if err != nil {
 		log.Printf("⚠️ Failed to generate description: %v", err)
 	} else {
