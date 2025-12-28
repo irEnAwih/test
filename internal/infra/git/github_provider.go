@@ -53,14 +53,66 @@ func (g *GitHubProvider) GetPRDiff(ctx context.Context, owner, repo string, prNu
 			}
 		}
 
+		// 构建有效行
+		validMap := BuildValidLineMap(file.Hunks)
+
 		domainDiffs = append(domainDiffs, &domain.FileDiff{
-			FilePath: file.NewName,
-			OldPath:  file.OrigName,
-			Content:  fullPath,
-			// diffparser 目前计算 Additions/Deletions 比较简略，这里仅作演示
-			Additions: 0,
-			Deletions: 0,
+			FilePath:  file.NewName,
+			Content:   fullPath,
+			ValidLine: validMap,
 		})
 	}
 	return domainDiffs, nil
+}
+
+// PostReview 提交评论到 GitHub
+func (g *GitHubProvider) PostReview(ctx context.Context, owner, repo string, prNumber int, comments []*domain.ReviewComment) error {
+	if len(comments) == 0 {
+		return nil
+	}
+
+	// 1.获取PR的最新CommitSHA()
+	pr, _, err := g.client.PullRequests.Get(ctx, owner, repo, prNumber)
+	if err != nil {
+		return fmt.Errorf("failed to get pull request: %w", err)
+	}
+	commitID := pr.Head.GetSHA()
+
+	// 2.转换 domain.ReceiveComment -> github.DraftReviewComment
+	var ghComments []*github.DraftReviewComment
+
+	// 简单去重
+	seen := make(map[string]bool)
+	for _, c := range comments {
+		key := fmt.Sprintf("%s:%d:%s", c.FilePath, c.LineNumber, c.Content)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+
+		msg := fmt.Sprintf("🤖 **AI Review**: %s", c.Content)
+		// GitHub API 要求行号 (Line)
+		// 注意：在旧版 API 中需要计算 Position，但新版 API 支持直接传 Line，前提是能对应上
+		// 这里简化处理，直接传 Line。如果报错，通常是因为该行在 Diff 中不存在（AI 幻觉）
+		ghComments = append(ghComments, &github.DraftReviewComment{
+			Path: &c.FilePath,
+			Line: &c.LineNumber,
+			Side: github.String("RIGHT"), // 评论在代码变更的右侧（新代码）
+			Body: &msg,
+		})
+	}
+
+	// 3.提交Review
+	review := &github.PullRequestReviewRequest{
+		CommitID: &commitID,
+		Body:     github.String("🤖 AI Code Review Summary\n\nI have reviewed your code. See inline comments for details."),
+		Event:    github.String("COMMENT"), // 或者 "REQUEST_CHANGES", "APPROVE",
+		Comments: ghComments,
+	}
+	_, _, err = g.client.PullRequests.CreateReview(ctx, owner, repo, prNumber, review)
+	if err != nil {
+		return fmt.Errorf("failed to create review: %w", err)
+	}
+
+	return nil
 }
